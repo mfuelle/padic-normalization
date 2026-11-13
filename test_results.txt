@@ -1,0 +1,54 @@
+SageMath 10.10 / SageMathCell
+Testdatum: 2026-11-13
+
+Ausgeführt wurden die vollständigen Dateien padic_normalization.py und
+ test_padic_normalization.py. Übertragung per komprimiertem Quelltext,
+unveränderte Dekompression, compile(..., 'exec') und Ausführung in Python-
+Modulen. Die Tests wurden mit unittest.TextTestRunner ausgeführt.
+Keine verkürzte Nachimplementierung des Moduls.
+
+SHA-256 padic_normalization.py:
+a70a9ecfc5f1f52c9df627987026d3a1bbd6e19dafa8143e5cb9051f66d0f687
+SHA-256 test_padic_normalization.py:
+431f2ced9a3843b664caddfaef6fe67a72800747a9ee348470a5eea0c9f7078d
+
+GeneralExtensionTests:
+test_coefficient_structure_maps                         ok
+test_cusp_over_full_integer_ring                         ok
+test_explicit_integral_basis_on_fast_path                 ok
+test_integral_basis_guard                                ok
+test_integral_basis_name_collision                       ok
+test_maximal_order_non_eisenstein_at_two                  ok
+test_mixed_quartic_at_two                                ok
+test_nonmaximal_ramified_quadratic_at_two                 ok
+test_nonmaximal_unramified_quadratic_at_two               ok
+test_reject_locally_or_globally_reducible_extension       ok
+
+NormalizationTests:
+test_cusp                                               ok
+test_guards                                             ok
+test_invalid_inputs                                     ok
+test_multiple_steps                                     ok
+test_ramified_extension                                 ok
+test_rational_p_integral_input                           ok
+test_reducible                                          ok
+test_smooth                                             ok
+test_unramified_extension                               ok
+test_vertical_component                                 ok
+test_vertical_non_normality                             ok
+
+Ran 21 tests in 9.392s
+OK
+ALL_TESTS_OK True
+
+Die alten und neuen Fälle liefen gemeinsam. Die Kurvennormalisierungen
+werden algebraisch geprüft; die Wahl und Benennung zusätzlicher Erzeuger
+ist nicht kanonisch. Insbesondere prüft der Test für y^2=9(x^3-x) die
+beiden Inklusionen mit dem bekannten Normalisierungsring, statt einen
+bestimmten Ausdruck für z1 vorauszusetzen.
+
+Zusätzlich: lokale syntaktische Prüfung beider Python-Dateien erfolgreich.
+Keine lokale Sage-Installation verfügbar.
+
+Zum Wiederholen in einer Sage-Installation:
+  sage -python test_padic_normalization.py
