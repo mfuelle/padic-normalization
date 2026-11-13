@@ -1,11 +1,11 @@
 SageMath 10.10 / SageMathCell
-Testdatum: 2026-11-13
+Test date: 2026-11-13
 
-Ausgeführt wurden die vollständigen Dateien padic_normalization.py und
- test_padic_normalization.py. Übertragung per komprimiertem Quelltext,
-unveränderte Dekompression, compile(..., 'exec') und Ausführung in Python-
-Modulen. Die Tests wurden mit unittest.TextTestRunner ausgeführt.
-Keine verkürzte Nachimplementierung des Moduls.
+The complete files padic_normalization.py and test_padic_normalization.py
+were executed. The source code was compressed for transport, decompressed
+unchanged, compiled with compile(..., 'exec'), and executed in Python
+modules. The tests were run using unittest.TextTestRunner.
+No abbreviated reimplementation of the module was used.
 
 SHA-256 padic_normalization.py:
 a70a9ecfc5f1f52c9df627987026d3a1bbd6e19dafa8143e5cb9051f66d0f687
@@ -41,14 +41,14 @@ Ran 21 tests in 9.392s
 OK
 ALL_TESTS_OK True
 
-Die alten und neuen Fälle liefen gemeinsam. Die Kurvennormalisierungen
-werden algebraisch geprüft; die Wahl und Benennung zusätzlicher Erzeuger
-ist nicht kanonisch. Insbesondere prüft der Test für y^2=9(x^3-x) die
-beiden Inklusionen mit dem bekannten Normalisierungsring, statt einen
-bestimmten Ausdruck für z1 vorauszusetzen.
+The existing and new cases were run together. Curve normalizations are
+checked algebraically; the choice and naming of additional generators
+are not canonical. In particular, the test for y^2=9(x^3-x) checks both
+inclusions against the known normalization ring, rather than assuming
+a particular expression for z1.
 
-Zusätzlich: lokale syntaktische Prüfung beider Python-Dateien erfolgreich.
-Keine lokale Sage-Installation verfügbar.
+In addition, both Python files passed a local syntax check.
+No local Sage installation was available.
 
-Zum Wiederholen in einer Sage-Installation:
+To repeat the tests in a Sage installation:
   sage -python test_padic_normalization.py

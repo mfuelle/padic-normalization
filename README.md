@@ -49,10 +49,10 @@ relations remain authoritative; finite-precision output is a convenience.
 
 ## Documentation and tests
 
-- [Detailed user guide (German)](README.de.md)
-- [Implementation and mathematics (German)](IMPLEMENTIERUNG.md)
+- [Detailed user guide](USER_GUIDE.md)
+- [Implementation and mathematics](IMPLEMENTATION.md)
 - [Examples](examples.sage)
-- [Changelog (German)](CHANGELOG.md)
+- [Changelog](CHANGELOG.md)
 - [Test report and source hashes](test_results.txt)
 
 All 21 regression tests passed under SageMath 10.10 through SageMathCell on
