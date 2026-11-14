@@ -10,6 +10,30 @@ from padic_normalization import (normalize_affine_padic, NormalizationLimitError
 
 
 class BackendTests(unittest.TestCase):
+    def test_polynomial_generator_elimination_over_integers(self):
+        from padic_normalization import _simplify_presentation
+        R = PolynomialRing(ZZ, names=('x', 'y', 'z1', 'z2'))
+        x,y,z1,z2 = R.gens()
+        F = PolynomialRing(QQ, names=('x', 'y')).fraction_field()
+        xx,yy = F.gens()
+        E = _Engine()
+        I = E.std(R.ideal(z1-x**2, z2-z1*y))
+        J, images, tracked, removed = _simplify_presentation(
+            E, I, ('x','y'), [xx,yy,xx**2,xx**2*yy], (z1+z2,))
+        self.assertEqual(J.ring().variable_names(), ('x','y'))
+        self.assertEqual(J, J.ring().ideal(0))
+        self.assertEqual(tracked[0], J.ring().gen(0)**2*(1+J.ring().gen(1)))
+        self.assertEqual(images, [xx,yy])
+        self.assertEqual([r['variable'] for r in removed], ['z1','z2'])
+        # 2*z=x does not allow division by 2 over ZZ.
+        R = PolynomialRing(ZZ, names=('x','y','z'))
+        x,y,z = R.gens()
+        I = E.std(R.ideal(2*z-x))
+        J, _, _, removed = _simplify_presentation(
+            E, I, ('x','y'), [xx,yy,xx/2])
+        self.assertEqual(J.ring().ngens(), 3)
+        self.assertEqual(removed, [])
+
     def test_integer_colon_preserves_torsion(self):
         R = PolynomialRing(ZZ, names=('pn_intersection', 'y'))
         x, y = R.gens()
@@ -108,6 +132,38 @@ class NormalizationTests(unittest.TestCase):
         candidates = list(B.gens()[2:])
         self.assertTrue(any(t**2 == x and (t**5 == y or t**5 == -y)
                             for t in candidates))
+
+    def test_simplify_each_step_and_afterwards(self):
+        f = self.y**2-self.x**5
+        raw = normalize_affine_padic(f, 5, simplify=False)
+        N = normalize_affine_padic(f, 5, simplify=True)
+        final = raw.simplified()
+        self.assertGreater(raw.ambient_ring.ngens(), N.ambient_ring.ngens())
+        self.assertEqual(N.ambient_ring.ngens(), 3)
+        self.assertTrue(N.simplifications)
+        self.assertEqual(len(N.steps), len(raw.steps))
+        for result in (N, final, final.simplified()):
+            B = result.integer_ring()
+            x,y,t = B.gens()
+            self.assertEqual(t**2, x)
+            self.assertTrue(t**5 == y or t**5 == -y)
+            A,B,phi = result.normalization_map()
+            self.assertEqual(phi(A.gen(0)), B.gen(0))
+            self.assertEqual(tuple(result.fraction_images), result.ambient_ring.variable_names())
+
+    def test_one_generator_per_step(self):
+        N = normalize_affine_padic(self.y**3-self.x**4, 5,
+                                  max_new_generators=1, max_steps=20)
+        self.assertTrue(all(len(step['variables']) <= 1 for step in N.steps))
+        B = N.integer_ring()
+        self.assertEqual(B.ngens(), 3)
+        x,y,t = B.gens()
+        self.assertTrue(t**3 == x or t**3 == -x)
+        self.assertEqual(t**4, y)
+        for value in (0, -1, QQ(3)/2):
+            with self.assertRaises(ValueError):
+                normalize_affine_padic(self.y**2-self.x**3, 5,
+                                       max_new_generators=value)
 
     def test_rational_p_integral_input(self):
         R = self.R.change_ring(QQ)

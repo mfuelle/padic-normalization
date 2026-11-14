@@ -35,6 +35,26 @@ a flattened presentation over `Zp` with an explicit `O_K`-algebra structure,
 rather than a native Sage p-adic DVR coefficient class. The exact integer
 relations remain authoritative; finite-precision output is a convenience.
 
+## Keeping presentations small
+
+Redundant normalization generators are removed **after every enlargement by
+default**. The source variables and integral-basis coefficient variables stay
+fixed. Each removal is an exact polynomial substitution over ZZ.
+
+```sage
+N = normalize_affine_padic(f, p=2, extension=g,
+                           simplify=True, max_new_generators=1,
+                           max_steps=100, verbose=True)
+print(N.simplifications)
+```
+
+`max_new_generators=1` adjoins at most one element per step; it may require more
+steps. `max_variables` still limits the peak presentation size before
+simplification, so room for the next generator is needed. Use `simplify=False`
+to disable automatic removal and `N.simplified()` to simplify a completed
+result later. This removes individual redundancies in the exact global model;
+it does not guarantee a globally smallest generating set over O_K.
+
 ## Scope
 
 - For `K = QQ_p`, use a nonconstant polynomial in two variables over `ZZ` or
@@ -55,7 +75,7 @@ relations remain authoritative; finite-precision output is a convenience.
 - [Changelog](CHANGELOG.md)
 - [Test report and source hashes](test_results.txt)
 
-All 24 regression tests passed under SageMath 10.10 in Arch Linux/WSL on
+All 27 regression tests passed under SageMath 10.10 in Arch Linux/WSL on
 November 14, 2026. To run them locally:
 
 ```sh
@@ -66,9 +86,10 @@ On distributions whose `sage` launcher does not support `-python`, use
 `python test_padic_normalization.py` with the Python installation that provides
 `sage.all`.
 
-The reported degree-eight extension example now passes the previous
-memory-intensive stages, but its full normalization has not been verified:
-the subsequent radical computation was stopped to limit test time. See the
+During the backend update, the reported degree-eight extension example passed
+the previous memory-intensive stages, but its full normalization was not
+verified: the subsequent radical computation was stopped to limit test time.
+It was not rerun for the generator simplification update. See the
 [test report](test_results.txt) and [restart guidance](USER_GUIDE.md#singular-restarts-and-memory-use).
 
 SageMath and its Singular backend are required; ordinary Python alone is not

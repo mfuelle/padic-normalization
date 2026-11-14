@@ -50,3 +50,12 @@ N = normalize_affine_padic(y^2-x, 2, extension=T^4-14*T^2+9)
 print(N.coefficient_model['ramification_index'])  # 2
 print(N.coefficient_model['residue_degree'])      # 2
 print(N.ring_over_integers())
+
+# 7. Remove older generators after each step; adjoin at most one at a time.
+R.<x,y> = PolynomialRing(ZZ)
+N = normalize_affine_padic(y^2-x^5, 5, simplify=True,
+                           max_new_generators=1, max_steps=100, verbose=True)
+print(N.ambient_ring.variable_names())  # x, y, and one normalization parameter
+print(N.simplifications)
+# For an existing result computed with simplify=False:
+# small = N.simplified(verbose=True)

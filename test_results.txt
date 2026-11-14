@@ -1,3 +1,27 @@
+Generator simplification update / SageMath 10.10 / Arch Linux (WSL)
+Test date: 2026-11-14
+
+Command: python test_padic_normalization.py
+Ran 27 tests in 11.381s
+OK
+
+New coverage: polynomial generator elimination with test-element transport;
+integer nonunits; per-step and final simplification of y^2-x^5; preserved
+source embeddings and fraction-image names; one-generator batches for
+y^3-x^4. Existing coefficient and vertical-component tests also passed with
+the new default simplify=True.
+
+The large degree-eight example was NOT rerun for this update.
+
+SHA-256 padic_normalization.py:
+db01227f8e78fa13850935f3c2750626a5580ca44de9f4770e6cb8cf4002d7c9
+SHA-256 test_padic_normalization.py:
+89ee1d06d8292a1c02e0027f63ea3494d4b5c14aed968ff9a4f27020deb24761
+
+Historical validation of earlier versions follows. Each set of hashes
+identifies the version tested in its own section.
+-----------------------------------------------------------------------
+
 SageMath 10.10 / Arch Linux (WSL), Python 3.14
 Test date: 2026-11-14
 

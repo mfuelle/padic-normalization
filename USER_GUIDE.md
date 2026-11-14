@@ -81,12 +81,66 @@ The input syntax for `f` remains restricted to integer coefficients in `(a,x,y)`
 * `N.fraction_images`: each new generator represented as a fraction in the original variables. These fractions are interpreted **modulo the original relations**; they need not be equal in the ambient rational function field. Their denominators are nonzerodivisors in the starting ring.
 * `N.steps`: the successively adjoined fractions, each expressed in the variables of the preceding step.
   When a vertical component is present, the last entry instead contains the name of the separating idempotent.
+* `N.simplifications`: successive removal records with `variable` and `expression`. Each expression belongs to the smaller polynomial ring immediately after that removal. Later substitutions may be needed to express it in the final variables. `steps` remains a history of enlargements, so it may mention variables subsequently removed.
 * `N.certificate`: termination by the Grauert–Remmert criterion, not merely by smoothness of the generic fibre.
 * `N.padic_ring(prec=40)`: on the existing direct path, a quotient ring over Sage's p-adic ring of integers. In integral basis mode, a **flattened presentation in a single polynomial ring over Z_p**, with a and the integral basis elements as additional variables and with their coefficient relations. Its `base_ring()` is Z_p; the full O_K-algebra structure is described by `coefficient_model` or `coefficient_ring(prec=40)`. Sage does not sufficiently support arithmetic over a nested p-adic quotient coefficient ring. The result is therefore not presented as a native O_K DVR class. **The exact specification remains `N.relations`**; the p-adic object does not replace an exact equality test.
 
-The program does not minimize the affine presentation. It may return several additional variables and redundant relations even when a much shorter isomorphic presentation exists.
+By default, the program removes individually redundant normalization generators after every enlargement. It does not search for a globally smallest set of algebra generators or minimize the list of defining relations. A shorter isomorphic presentation may still exist.
 
 Sage does not implement every quotient operation over the exact nested coefficient ring either. For ideal computations and equality tests, `integer_ring()` or `ideal` in the common integer polynomial ring is the reference.
+
+## Controlling the number of generators
+
+Use `simplify=True` (the default) to remove redundant generators after each
+enlargement. A generator z is removed only after finding and verifying an exact
+relation `z=P(other variables)`. The algorithm substitutes P into all defining
+relations and into its current test element. The original variables and all
+coefficient presentation variables are protected, so the original embedding
+and coefficient structure maps remain available.
+
+For example, the normalization of `y^2-x^5` can acquire intermediate elements
+corresponding to `t^3=y/x` and then `t=y/x^2`. Once t is present, the older
+element is redundant because `t^3=x*t`. The simplified output retains only
+one extra parameter, with `x=t^2` and `y=t^5`.
+
+```sage
+R.<x,y> = PolynomialRing(ZZ)
+N = normalize_affine_padic(y^2-x^5, 5, simplify=True,
+                           max_new_generators=1, max_steps=100,
+                           verbose=True)
+print(N.ambient_ring.variable_names())
+print(N.simplifications)
+
+# Alternatively, simplify only after normalization has finished.
+raw = normalize_affine_padic(y^2-x^5, 5, simplify=False)
+small = raw.simplified(verbose=True)  # raw is unchanged
+```
+
+`max_new_generators` is a positive integer or `None` (the default). With a
+finite value, only that many of the computed fractions are adjoined per
+enlargement. Each resulting ring is still a finite integral birational
+extension, and the normality criterion is checked again on the next iteration.
+This can require more iterations, so `max_steps` may need to be increased.
+
+`max_variables` remains a hard guard on the total presentation size **before**
+removing redundancies. It includes original variables, coefficient variables,
+and normalization generators, but not temporary elimination variables. It
+does not promise that normalization is possible within the chosen bound.
+Leave room for at least one new variable even if an older variable is expected
+to disappear immediately afterwards.
+
+The simplifier is conservative: it works over the exact global integer model,
+not just its p-adic base change. It never divides by a nonunit integer to remove
+a variable. Thus it can miss a relation available only after localizing away
+from p. Among the current unprotected generators, no single generator can be
+deleted over that global model when the check finishes. This is **not minimum
+cardinality**: replacing several generators by new combinations may allow a
+smaller set, and the order of deletions may affect the result. The coefficient
+presentation itself is not minimized.
+
+Each redundancy check needs an elimination standard basis and may be costly.
+Smaller presentations can make later normalization steps cheaper, but this
+extra work is not guaranteed to reduce total running time.
 
 ## Algorithm and correctness
 
@@ -103,6 +157,11 @@ Ji = radical(d*Ai)
 Ci = (d*Ji : Ji)
 Ai+1 = (1/d)*Ci = End_Ai(Ji).
 ```
+
+With `max_new_generators` set, Ai+1 may instead be a proper intermediate
+algebra obtained by adjoining only the selected fractions from this
+endomorphism ring. Termination still requires the full normality criterion.
+Removing redundant variables changes only the presentation of Ai+1.
 
 `radicalZ` from Singular's `primdecint.lib` computes the radical over ZZ. The ideal quotient is computed by integer ideal intersections and exact division: starting with K=(1), each nonzero generator j of Ji replaces K by `(H intersect j*K)/j`, where H is the preimage of d*Ji. Intersections are computed by elimination over ZZ. The ordinary `quotient` is not used; the Singular library documents limitations of that function over ZZ.
 
@@ -124,7 +183,7 @@ The normalization is first computed over ZZ. Localization at p and the regular b
 
 Run the supplied test suite with `sage -python test_padic_normalization.py`. The file `examples.sage` contains directly executable examples (`sage examples.sage`).
 
-The current version passes all 24 regression tests under SageMath 10.10 in Arch Linux/WSL (November 14, 2026). The tests cover nonmaximal orders, mixed ramification, local irreducibility, output formats, integer ideal quotients, and Singular restarts. `test_results.txt` records the current source hashes and retains the earlier SageMathCell report. On distributions without `sage -python`, run the suite with a Python installation that provides `sage.all`.
+The current version passes all 27 regression tests under SageMath 10.10 in Arch Linux/WSL (November 14, 2026). The tests cover nonmaximal orders, mixed ramification, local irreducibility, output formats, integer ideal quotients, Singular restarts, generator removal, and bounded batches. `test_results.txt` records the current source hashes and retains earlier reports. On distributions without `sage -python`, run the suite with a Python installation that provides `sage.all`.
 
 This is a direct reference implementation. Radicals and elimination Gröbner bases over ZZ can be very expensive. It may also normalize at other primes, whose corrections become redundant after base change to O_K.
 
@@ -138,7 +197,7 @@ As with any CAS result, the certificate assumes the correctness of the exact Sin
 
 The November 14 update avoids the memory-intensive syzygy path, simplifies the graph fractions, and improves the test element in integral basis mode. Large radical computations can still take substantial time. Restart your Sage session after updating the module so that Python imports the new code.
 
-For the reported input `(t^2-s^3)^2*(1+s)-2` over the extension defined by `T^8+4*T^6+2*T^4+28*T^2+1` at p=2, the updated implementation completed the first enlargement, including the previously problematic ideal quotient and graph computation. The following radical computation was stopped to limit test time. A full normalization of this example has **not** yet been verified.
+For the reported input `(t^2-s^3)^2*(1+s)-2` over the extension defined by `T^8+4*T^6+2*T^4+28*T^2+1` at p=2, the backend update completed the first enlargement, including the previously problematic ideal quotient and graph computation. The following radical computation was stopped to limit test time. A full normalization of this example has **not** yet been verified. The large example was not rerun after adding generator simplification.
 
 ## References
 
