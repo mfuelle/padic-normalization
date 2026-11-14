@@ -1,5 +1,6 @@
 # Changes on November 14, 2026
 
+- `verbose=True` now prints every normalization adjunction before graph elimination, in both current and original variables, with immediate flushing. Completion, coefficient basis elements, the vertical idempotent, and final certification are also reported.
 - Added exact removal of individually redundant normalization generators after every enlargement (`simplify=True`, the default), plus `N.simplified()` for postprocessing. Original and coefficient variables are retained. Removal expressions are recorded in `N.simplifications`.
 - Added `max_new_generators` to bound the number of fractions adjoined per step. This can increase the number of steps; `max_variables` still applies before simplification. These options do not promise a globally minimal generating set.
 - Added regression coverage for nonlinear substitutions, integer nonunits, multi-step cusp simplification, postprocessing, preserved embeddings, and one-generator batches.

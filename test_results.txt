@@ -1,3 +1,20 @@
+Live adjunction output update / SageMath 10.10 / Arch Linux (WSL)
+Test date: 2026-11-14
+
+Focused smoke check: y^2-x^5 at p=5 with verbose=True completed two
+adjunctions, printed both fraction representations, reported verification
+and generator removal, and reached normality certification.
+A captured run of y^2-x^3 at p=3 with verbose=False emitted no output.
+No full regression suite or large-example rerun for this logging-only update.
+
+SHA-256 padic_normalization.py:
+8ed78d5164fba9c773738bbcdd721d3476c732f848ae02ea015c4ff8d7e2511b
+SHA-256 test_padic_normalization.py:
+89ee1d06d8292a1c02e0027f63ea3494d4b5c14aed968ff9a4f27020deb24761
+
+Historical reports for earlier source versions follow.
+-----------------------------------------------------------------------
+
 Generator simplification update / SageMath 10.10 / Arch Linux (WSL)
 Test date: 2026-11-14
 

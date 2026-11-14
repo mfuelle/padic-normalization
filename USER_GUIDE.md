@@ -91,6 +91,17 @@ Sage does not implement every quotient operation over the exact nested coefficie
 
 ## Controlling the number of generators
 
+Set `verbose=True` to follow the calculation live. Before computing the graph
+relations, each adjunction is printed as `z = numerator/denominator` in the
+current variables, followed by its fraction representation in the original
+variables (understood modulo the original relations). Output is flushed
+immediately. A separate message confirms that the adjunction and relation
+checks have completed; an announcement alone does not mean they succeeded.
+Coefficient basis elements are listed after their presentation is constructed,
+and the vertical splitting idempotent is announced before its relations are
+computed. Removals by the simplifier and final normality certification are
+also printed. The default `verbose=False` keeps these messages disabled.
+
 Use `simplify=True` (the default) to remove redundant generators after each
 enlargement. A generator z is removed only after finding and verifying an exact
 relation `z=P(other variables)`. The algorithm substitutes P into all defining

@@ -580,7 +580,21 @@ def _integral_coefficient_model(I, d, g, p, max_variables):
     return newI, test_element, images, model
 
 
-def _with_vertical_component(H, max_variables):
+def _print_adjunction(stage, names, images, numerators=None, denominator=None,
+                       completed=False):
+    """Print generator formulas immediately, before costly graph elimination."""
+    action = 'Adjoined' if completed else 'Adjoining'
+    for i, (name, image) in enumerate(zip(names, images)):
+        if numerators is None:
+            print('%s: %s %s = %s [original variables]' %
+                  (stage, action, name, image), flush=True)
+        else:
+            print('%s: %s %s = (%s)/(%s) [current variables]' %
+                  (stage, action, name, numerators[i], denominator), flush=True)
+            print('  %s = %s [original variables]' % (name, image), flush=True)
+
+
+def _with_vertical_component(H, max_variables, verbose=False):
     """Normalize p*f as Normalization(f) x F_p[x,y].
 
     e is the horizontal idempotent. Extra horizontal generators are extended
@@ -600,14 +614,17 @@ def _with_vertical_component(H, max_variables):
     rels = [e**2-e, H.p*(1-e)]
     rels += [e*into(h) for h in H.relations]
     rels += [(1-e)*z for z in S.gens()[R0.ngens():-1]]
+    F0 = R0.fraction_field()
+    idempotent = F0(H.p)/(H.p+fi)
+    if verbose:
+        _print_adjunction('Vertical component', (ename,), (idempotent,))
     E = _Engine()
     I = E.std(S.ideal(rels))
-    F0 = R0.fraction_field()
     images = [F0(v) for v in R0.gens()]
     for name in names[R0.ngens():]:
         q = H.fraction_images[name]
         images.append(F0(H.p*q.numerator())/(H.p*q.denominator()+fi))
-    images.append(F0(H.p)/(H.p+fi))
+    images.append(idempotent)
     result = PadicNormalization(H.p, R0.ideal(H.p*fi), I, images,
                                 list(H.steps)+[{'vertical_idempotent':ename}],
                                 None, 'Product of a Grauert-Remmert-normalized ring and F_p[x,y]')
@@ -641,6 +658,10 @@ def normalize_affine_padic(f, p, extension=None, max_steps=20,
     max_new_generators bounds the number adjoined in one enlargement (None
     means no batch limit). A smaller batch may require more steps. Neither
     option guarantees a globally minimal generating set.
+
+    verbose=True prints each adjunction before graph elimination, both in
+    the current variables and in the original variables, with immediate
+    flushing. Completion and subsequent generator removals are reported too.
     """
     p = ZZ(p)
     if integral_basis and extension is None:
@@ -662,7 +683,9 @@ def normalize_affine_padic(f, p, extension=None, max_steps=20,
             H = normalize_affine_padic(fq/p, p, max_steps=max_steps,
                                        max_variables=max_variables, verbose=verbose,
                                        simplify=simplify, max_new_generators=max_new_generators)
-            result = _with_vertical_component(H, max_variables)
+            result = _with_vertical_component(H, max_variables, verbose=verbose)
+            if verbose:
+                print('Vertical component adjunction complete.', flush=True)
             return result.simplified(verbose=verbose) if simplify else result
     I, d, extension = _prepare(f, p, extension)
     E = _Engine()
@@ -680,6 +703,10 @@ def normalize_affine_padic(f, p, extension=None, max_steps=20,
         if integral_basis or not simple:
             I, d, images, coefficient_model = _integral_coefficient_model(
                 I, d, g, p, max_variables)
+            if verbose:
+                _print_adjunction('Coefficient basis',
+                                   I.ring().variable_names()[R0.ngens():],
+                                   images[R0.ngens():], completed=True)
     integral_original = I
     steps = []
     simplifications = []
@@ -710,6 +737,9 @@ def normalize_affine_padic(f, p, extension=None, max_steps=20,
             result.coefficient_model = coefficient_model
             result.integral_original_ideal = integral_original
             result.simplifications = tuple(simplifications)
+            if verbose:
+                print('Normalization certified after %s enlargement steps.' % len(steps),
+                      flush=True)
             return result
         if len(steps) >= max_steps:
             raise NormalizationLimitError('max_steps reached; no certified result returned.')
@@ -724,6 +754,9 @@ def normalize_affine_padic(f, p, extension=None, max_steps=20,
         ev = R.hom(images, F0)
         new_images = [ev(u)/ev(d) for u in numerators]
         old_d = d
+        if verbose:
+            _print_adjunction('Step %s' % (len(steps)+1), new_names,
+                               new_images, numerators, d)
         newI = E.graph(I, d, numerators, new_names)
         into = R.hom(list(newI.ring().gens())[:R.ngens()], newI.ring())
         # Verify the original equations and graph equations survived.
@@ -734,6 +767,8 @@ def normalize_affine_padic(f, p, extension=None, max_steps=20,
             raise ArithmeticError('The graph presentation failed verification.')
         steps.append({'variables':tuple(new_names), 'numerators':tuple(numerators),
                       'denominator':old_d})
+        if verbose:
+            print('Step %s adjunction complete; relations verified.' % len(steps), flush=True)
         images += new_images
         d = into(d)
         I = newI
