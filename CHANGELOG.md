@@ -1,3 +1,11 @@
+# Changes on November 14, 2026
+
+- Replaced integer syzygy ideal quotients with exact integer intersection elimination and division. The previous route exhausted memory on the reported degree-eight extension example.
+- Cancelled common polynomial factors before graph saturation, retaining the full relation kernel with smaller elimination inputs.
+- In integral basis mode, removed the unnecessary coefficient-order derivative factor from the test element and prefer a nonzero integer from the relative Jacobian ideal when available.
+- Added `NormalizationBackendError` for a Singular restart during an operation. Helpers are reloaded after a restart between operations.
+- Added tests for integer torsion in ideal quotients and controlled Singular restarts. Large examples remain subject to radical-computation time and memory costs.
+
 # Changes on November 13, 2026
 
 - General monic extension polynomials over ZZ are now allowed, provided they are irreducible over Q_p. This is checked exactly using prime ideal decomposition in the number field. In particular, this includes extensions of Q_2 whose defining polynomial is neither Eisenstein nor irreducible modulo 2.

@@ -143,7 +143,9 @@ $$
 d=g'(a)h.
 $$
 
-This is a linear combination of the relevant Jacobian minors of the two equations `g(a), f_0`. On the direct path, the factor `g'(a)` also accounts for possible nonnormality of the global coefficient model at other primes. The same d remains valid in integral basis mode: after inverting `g'(a)`, the original order is already étale over ZZ and agrees with its integral closure. Inverting h as well still yields a smooth, hence normal open subset.
+This is a linear combination of the relevant Jacobian minors of the two equations `g(a), f_0`. On the direct path, the factor `g'(a)` also accounts for possible nonnormality of the global coefficient model at other primes.
+
+In integral basis mode, the coefficient ring is already the normal ring O_F. The factor `g'(a)` is therefore removed: inverting h makes the curve smooth over O_F, which suffices for normality. The implementation also computes the relative Jacobian ideal of the curve over O_F. If its standard basis contains a nonzero integer, that integer is used as d instead. Its principal open is likewise smooth over O_F. A constant test element can greatly reduce the cost of `radicalZ`, since the test ideal then has no characteristic-zero component. If no constant is found, h is retained.
 
 Throughout the iteration, `d` remains the image of this original element. It is simply transferred into each larger presentation.
 
@@ -217,25 +219,27 @@ Finitely generated `ZZ`-algebras are excellent; in the reduced case, their norma
 
 `nf` computes normal forms using Singular's `reduce`; `subset` checks ideal inclusions using normal forms of the generators.
 
-### 6.2 Ideal quotient from syzygies
+### 6.2 Ideal quotient by integer elimination
 
-`pn_colon(H,J)` implements `(H:J)` using module syzygy computations over `ZZ`. Write
+`_Engine.colon(H,J)` computes `(H:J)` over `ZZ`. Write
 
 $$
 H=(h_1,\ldots,h_m),\qquad J=(j_1,\ldots,j_r).
 $$
 
-First, Python reduces the generators of J modulo I and removes zero remainders. Since I is contained in H, these steps do not change the ideal quotient. H is replaced by a standard basis before computing syzygies.
+First, Python reduces the generators of J modulo I and removes zero remainders. Since I is contained in H, these steps do not change the ideal quotient. H is replaced by a standard basis.
 
-The helper starts with K=(1) and processes the generators of J individually. For K=(k_1,...,k_s), it computes the syzygies of the list `(j_i*k_1,...,j_i*k_s,h_1,...,h_m)`. A syzygy satisfies
+Starting with K=(1), the method processes each nonzero generator j of J by computing
 
 $$
-j_i\sum_\ell u_\ell k_\ell+\sum_k v_k h_k=0.
+L=H\cap jK,\qquad K_{\mathrm{new}}=L/j=K\cap(H:j).
 $$
 
-The elements `sum(u_l*k_l)` obtained from these syzygies generate exactly `K intersect (H:j_i)`. After each iteration, K is replaced by the standard basis of this ideal. At the end, K=(H:J). For the zero ideal J, K remains (1). This sequential procedure avoids the large block matrix that would result from imposing all conditions simultaneously.
+The intersection is obtained by eliminating an auxiliary variable u from `u*H + (1-u)*j*K`. Each resulting generator is divided exactly by j, and the identity `j*quotient == generator` is checked. This division is valid because the ambient ring `ZZ[variables]` is a domain. After each iteration, K is replaced by a standard basis. At the end, K=(H:J); for the zero ideal J, K remains (1).
 
-Python then additionally checks `K*J ⊆ H` for the computed ideal `K`. This check detects certain backend or conversion errors. It checks only this inclusion; completeness of the ideal quotient relies on the correctness of the syzygy computation.
+All ideal computations remain over ZZ. Extending H to QQ would lose integer torsion and is not allowed. This method replaces the integer syzygy routine used before November 14, 2026, which exhausted memory on the reported degree-eight extension example.
+
+Python additionally checks `K*J ⊆ H`. This detects certain backend or conversion errors; completeness relies on the elimination computation and exact division.
 
 ### 6.3 Full relations by saturation
 
@@ -261,13 +265,15 @@ $$
 
 The block term order places `t` in a leading lexicographic block. The polynomials independent of `t` are selected from the standard basis. After removing the auxiliary variable, another standard basis is computed.
 
+Before constructing this elimination ideal, common polynomial factors in each `u_j/d` are cancelled exactly. The graph uses these reduced numerators and denominators and inverts the least common multiple of the reduced denominators. This gives the same relation kernel: every divisor of the original nonzerodivisor d is a nonzerodivisor as well. Avoiding removable factors substantially reduces memory use in some examples.
+
 The additional Python check ensures that the old relations and all equations `dz_j-u_j` belong to the new ideal. Completeness of the computed kernel follows from the elimination computation; the inclusion check alone would not prove it.
 
 ### 6.4 Interface details
 
 - Before each Singular call, the appropriate ring is set as the current ring.
 - Results are explicitly converted back into the intended Sage ring using `sage_poly(R)`.
-- The helpers are reloaded when an `_Engine` is created, including after a restart of the Singular process.
+- The helpers are loaded when an `_Engine` is created and reloaded if Singular was restarted between operations. A restart during an operation raises `NormalizationBackendError`, naming the interrupted operation. The result is discarded; the computation is not silently retried or certified.
 - The helper text is passed to `singular.eval` as a single line. This prevents the Expect interface from waiting on an incomplete procedure declaration. Consequently, `//` line comments must not be added to the helper text.
 - The elimination variable is initially named `pn_inverse`; underscores are appended in case of name collisions. New algebra generators are named `z1`, `z2`, …; names already in use are skipped.
 - The shared Singular session has mutable state. Parallel calls within the same session are not protected; separate processes should be used for parallel computations.
@@ -425,15 +431,16 @@ This simplification explains the output; automatic minimization is not part of t
 | `TypeError` | Unsuitable coefficient ring or unsupported extension description |
 | `ValueError` | An input precondition is violated, such as reducedness, primality, or monicity |
 | `NormalizationLimitError` | Another enlargement would exceed a configured resource limit |
+| `NormalizationBackendError` | Singular restarted during an operation; no certified result is returned |
 | `ArithmeticError` | The test element could not be constructed, or an internal consistency check failed |
 
 Other exceptions from the Sage/Singular backend are not caught in general.
 
 `max_steps` bounds the number of actual enlargement steps. Even with `max_steps=0`, the algorithm checks whether the starting model is already normal. `max_variables` is checked before adding the integral basis, before adjoining new generators, and when splitting off the vertical component. It is not a general memory limit and, in particular, does not count the temporary elimination variable.
 
-There is no timeout within an individual radical, syzygy, or standard basis computation. Fixed time or memory limits require execution in a separate process.
+There is no timeout within an individual radical, intersection, or standard basis computation. Fixed time or memory limits require execution in a separate process. If Linux kills Singular for exceeding available memory, Sage may restart it and report a missing helper function. The engine detects the session change and reports the backend interruption explicitly. Raising `max_steps` or `max_variables` does not provide more memory.
 
-The dominant costs come from `radicalZ`, module syzygies, and the elimination basis of the graph presentation. Numerous additional variables, high degrees, and global contributions from other primes may greatly increase the computation. The configured limits are safeguards, not a promise that an input below them will be processed quickly.
+The dominant costs come from `radicalZ`, ideal intersection elimination, and the elimination basis of the graph presentation. Numerous additional variables, high degrees, and global contributions from other primes may greatly increase the computation. The configured limits are safeguards, not a promise that an input below them will be processed quickly.
 
 ## 12. Validation and maintenance
 
@@ -454,7 +461,11 @@ The tests check algebraic properties of the results, rather than only the textua
 | `3(y^2-x^3)` | Product decomposition, generator images, and original equation |
 | Invalid inputs and resource limits | Expected exceptions |
 
-On November 13, 2026, all 21 tests passed under SageMath 10.10 through the SageMathCell interface. The complete distributed module and test files were executed, rather than an abbreviated reimplementation. For transport, their bytes were compressed, then decompressed unchanged and compiled with Python in the Sage session; the test runner loaded the resulting modules. The SHA-256 hashes in [`test_results.txt`](test_results.txt) match the local files. No local Sage installation was available; the local Python files also passed a syntax check.
+On November 13, 2026, all 21 tests passed under SageMath 10.10 through the SageMathCell interface. The complete module and test files of that version were executed, rather than an abbreviated reimplementation. For transport, their bytes were compressed, then decompressed unchanged and compiled with Python in the Sage session; the test runner loaded the resulting modules. No local Sage installation was available at that time; the local Python files also passed a syntax check.
+
+On November 14, all 24 tests of the updated implementation passed under SageMath 10.10 in Arch Linux/WSL. The three new tests cover integer ideal quotients (including nonunit constants, zero ideals, and an auxiliary variable name collision), a restart between operations, and a controlled restart during result conversion. [`test_results.txt`](test_results.txt) records hashes for both versions.
+
+The degree-eight extension example reported by the user was reproduced. Kernel logs confirmed out-of-memory termination of Singular. With the updated code, its first enlargement completed; the next radical computation was stopped to limit test time. This is a partial performance check, not a completed normalization or a full regression-test pass for that input.
 
 To test the distributed files in a Sage installation, run:
 

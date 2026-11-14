@@ -12,6 +12,10 @@ class NormalizationLimitError(RuntimeError):
     """A resource guard fired. No normalization is returned as certified."""
 
 
+class NormalizationBackendError(RuntimeError):
+    """Singular restarted during an operation; no result is certified."""
+
+
 class CoefficientPresentationMap:
     """Verified coefficient inclusion, evaluated on unreduced representatives.
 
@@ -57,41 +61,46 @@ proc pn_std(ideal I)
   attrib(G,"isSB",1);
   return(G);
 }
-proc pn_colon(ideal H, ideal J)
-{
-  H=simplify(H,2); J=simplify(J,2);
-  int i; int j; int k; int n;
-  ideal K=1; ideal W; ideal N; matrix S; poly c;
-  for (i=1; i<=size(J); i++)
-  {
-    n=size(K);
-    W=K*J[i],H;
-    S=syz(W);
-    N=0;
-    for (j=1; j<=ncols(S); j++)
-    {
-      c=0;
-      for (k=1; k<=n; k++) { c=c+K[k]*S[k,j]; }
-      N=N,c;
-    }
-    K=pn_std(N);
-  }
-  return(pn_std(K));
-}
 '''
 
 
 class _Engine:
     def __init__(self):
-        # Reloading also works after the user has restarted Singular.
+        self._load_helpers()
+
+    def _load_helpers(self):
         # Expect's line-by-line evaluator otherwise waits at an unfinished
         # procedure declaration. This helper string contains no // comments.
         singular.eval(' '.join(_SINGULAR_HELPERS.splitlines()))
+        self._session = singular._session_number
+
+    def _execute(self, name, R, args, convert):
+        # A deliberate restart between operations is safe: all input data
+        # live in Sage and can be converted into the new Singular session.
+        singular.pid()  # Start the process if the user called singular.quit().
+        if self._session != singular._session_number:
+            self._load_helpers()
+        session = singular._session_number
+        message = ('Singular restarted during %s in a polynomial ring with %s '
+                   'variables. The interrupted computation is not certified; '
+                   'no normalization has been returned.' % (name, R.ngens()))
+        try:
+            R._singular_().set_ring()
+            result = getattr(singular, name)(*[a._singular_() for a in args])
+            if session != singular._session_number:
+                raise NormalizationBackendError(message)
+            result = convert(result)
+        except Exception as exc:
+            if session != singular._session_number:
+                raise NormalizationBackendError(message) from exc
+            raise
+        if session != singular._session_number:
+            raise NormalizationBackendError(message)
+        return result
 
     def call(self, name, R, *args):
-        R._singular_().set_ring()
-        result = getattr(singular, name)(*[a._singular_() for a in args])
-        return R.ideal([g.sage_poly(R) for g in result])
+        return self._execute(name, R, args,
+                             lambda result: R.ideal([g.sage_poly(R) for g in result]))
 
     def std(self, I):
         return self.call('pn_std', I.ring(), I)
@@ -100,15 +109,41 @@ class _Engine:
         return self.std(self.call('radicalZ', I.ring(), I))
 
     def colon(self, H, J):
-        K = self.call('pn_colon', H.ring(), H, J)
+        """Compute (H:J) by integer elimination, without integer syzygies.
+
+        Starting with K=(1), replace K by (H intersect j*K)/j for each
+        nonzero generator j of J. Since ZZ[variables] is a domain this is
+        exactly K intersect (H:j). Division is exact, never saturation or
+        extension of an ideal to QQ (which would lose integer torsion).
+        """
+        R = H.ring()
+        aux = 'pn_intersection'
+        while aux in R.variable_names():
+            aux += '_'
+        S = PolynomialRing(ZZ, names=(aux,)+R.variable_names(),
+                           order=TermOrder('lex', 1)+TermOrder('degrevlex', R.ngens()))
+        into = R.hom(S.gens()[1:], S)
+        back = S.hom([R.zero()]+list(R.gens()), R)
+        z = S.gen(0)
+        K = R.ideal(1)
+        for j in J.gens():
+            if not j:
+                continue
+            G = self.std(S.ideal([z*into(h) for h in H.gens()] +
+                                [(1-z)*into(j*k) for k in K.gens()]))
+            intersection = [back(h) for h in G.gens() if h.degree(z) == 0]
+            quotients = [R(h/j) for h in intersection]
+            if any(h != j*q for h, q in zip(intersection, quotients)):
+                raise ArithmeticError('Ideal intersection division was not exact.')
+            K = self.std(R.ideal(quotients))
         if not self.subset(K*J, H):
             raise ArithmeticError('The computed ideal quotient failed verification.')
         return K
 
     def nf(self, f, G):
         R = G.ring()
-        R._singular_().set_ring()
-        return singular.reduce(f._singular_(), G._singular_(), 5).sage_poly(R)
+        return self._execute('reduce', R, (f, G, ZZ(5)),
+                             lambda result: result.sage_poly(R))
 
     def subset(self, I, J):
         G = self.std(J)
@@ -129,11 +164,18 @@ class _Engine:
         E = PolynomialRing(ZZ, names=(aux,) + names,
                            order=TermOrder('lex', 1) + TermOrder('degrevlex', len(names)))
         toE = R.hom(E.gens()[1:1+R.ngens()], E)
-        de = toE(d)
+        # Cancel common polynomial factors before introducing the inverse.
+        # This preserves u/d in the total quotient ring: every divisor of
+        # the nonzerodivisor d is itself a nonzerodivisor. Keeping removable
+        # factors can cause a severe memory blow-up in integer elimination.
+        fractions = [R.fraction_field()(u)/d for u in numerators]
+        denominator = R.one()
+        for q in fractions:
+            denominator = denominator.lcm(R(q.denominator()))
         rels = [toE(f) for f in I.gens()]
-        rels += [de*E.gen(1+R.ngens()+i)-toE(u)
-                 for i, u in enumerate(numerators)]
-        rels.append(1-E.gen(0)*de)
+        rels += [toE(R(q.denominator()))*E.gen(1+R.ngens()+i)-toE(R(q.numerator()))
+                 for i, q in enumerate(fractions)]
+        rels.append(1-E.gen(0)*toE(denominator))
         G = self.std(E.ideal(rels))
         back = E.hom([S.zero()] + list(S.gens()), S)
         out = [back(f) for f in G.gens() if f.degree(E.gen(0)) == 0]
@@ -453,7 +495,20 @@ def _integral_coefficient_model(I, d, g, p, max_variables):
              'number_field':F, 'basis':basis,
              'ramification_index':prime.ramification_index(),
              'residue_degree':prime.residue_class_degree()}
-    return newI, old(d), images, model
+    # O_F is already normal. After inverting the curve Jacobian element h,
+    # the model is smooth over O_F, hence normal. The factor g'(a) was only
+    # needed for the original order Z[a]; retaining it here can make the
+    # subsequent saturation needlessly expensive.
+    h = I.ring()(d/g.derivative()(I.ring().gen(0)))
+    # If the generic fibre is smooth, the relative Jacobian ideal may
+    # contain a nonzero integer. Its principal open is normal too, and a
+    # constant avoids expensive characteristic-zero elimination in radicalZ.
+    derivatives = [old(q.derivative(v)) for q in I.gens()
+                   for v in I.ring().gens()[1:] if q.derivative(v)]
+    jacobian = E.std(newI+S.ideal(derivatives))
+    constants = [ZZ(q) for q in jacobian.gens() if q and q.total_degree() == 0]
+    test_element = S(min(abs(c) for c in constants)) if constants else old(h)
+    return newI, test_element, images, model
 
 
 def _with_vertical_component(H, max_variables):
@@ -550,8 +605,7 @@ def normalize_affine_padic(f, p, extension=None, max_steps=20,
             print('Step %s: %s variables, %s relations' % (len(steps), R.ngens(), len(I.gens())), flush=True)
         J = E.radical(I+R.ideal(d))
         # Generators lying in I impose no colon condition, since I is in H.
-        # Reduce before constructing syzygies: multiplication-table models
-        # otherwise produce needlessly large block matrices over ZZ.
+        # Reduce before elimination to avoid redundant colon conditions.
         residues = [E.nf(j, I) for j in J.gens()]
         Jmod = R.ideal([j for j in residues if j != 0])
         H = E.std(I+R.ideal([d*j for j in Jmod.gens()]))

@@ -55,12 +55,21 @@ relations remain authoritative; finite-precision output is a convenience.
 - [Changelog](CHANGELOG.md)
 - [Test report and source hashes](test_results.txt)
 
-All 21 regression tests passed under SageMath 10.10 through SageMathCell on
-November 13, 2026, using the complete source files. To run them locally:
+All 24 regression tests passed under SageMath 10.10 in Arch Linux/WSL on
+November 14, 2026. To run them locally:
 
 ```sh
 sage -python test_padic_normalization.py
 ```
+
+On distributions whose `sage` launcher does not support `-python`, use
+`python test_padic_normalization.py` with the Python installation that provides
+`sage.all`.
+
+The reported degree-eight extension example now passes the previous
+memory-intensive stages, but its full normalization has not been verified:
+the subsequent radical computation was stopped to limit test time. See the
+[test report](test_results.txt) and [restart guidance](USER_GUIDE.md#singular-restarts-and-memory-use).
 
 SageMath and its Singular backend are required; ordinary Python alone is not
 sufficient.

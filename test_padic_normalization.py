@@ -5,7 +5,45 @@ iterations, and verify rejection of invalid input. They use exact arithmetic.
 """
 import unittest
 from sage.all import ZZ, QQ, Zp, PolynomialRing
-from padic_normalization import normalize_affine_padic, NormalizationLimitError
+from padic_normalization import (normalize_affine_padic, NormalizationLimitError,
+                                 NormalizationBackendError, _Engine)
+
+
+class BackendTests(unittest.TestCase):
+    def test_integer_colon_preserves_torsion(self):
+        R = PolynomialRing(ZZ, names=('pn_intersection', 'y'))
+        x, y = R.gens()
+        E = _Engine()
+        # (4,2x,xy):(2,x) = (2,xy), not the unit ideal obtained over QQ.
+        K = E.colon(R.ideal(4, 2*x, x*y), R.ideal(2, x, 0))
+        expected = R.ideal(2, x*y)
+        self.assertTrue(E.subset(K, expected))
+        self.assertTrue(E.subset(expected, K))
+        self.assertTrue(E.subset(E.colon(R.ideal(0), R.ideal(x)), R.ideal(0)))
+        self.assertEqual(E.nf(R.one(), E.colon(expected, R.ideal(0))), 0)
+
+    def test_restart_between_operations(self):
+        from sage.interfaces.singular import singular
+        R = PolynomialRing(ZZ, names=('x', 'y'))
+        I = R.ideal(R.gen(0)**2-R.gen(1))
+        E = _Engine()
+        E.std(I)
+        singular.quit()
+        self.assertTrue(E.subset(I, E.std(I)))
+
+    def test_restart_during_operation_is_reported(self):
+        from sage.interfaces.singular import singular
+        R = PolynomialRing(ZZ, names=('x', 'y'))
+        I = R.ideal(R.gen(0))
+        E = _Engine()
+        def interrupted(result):
+            singular.quit()
+            singular.eval('1;')
+            raise TypeError('simulated undefined helper after a restart')
+        with self.assertRaisesRegex(NormalizationBackendError, 'pn_std'):
+            E._execute('pn_std', R, (I,), interrupted)
+        # The same engine is usable again, but the failed operation was not retried.
+        self.assertTrue(E.subset(I, E.std(I)))
 
 
 class NormalizationTests(unittest.TestCase):

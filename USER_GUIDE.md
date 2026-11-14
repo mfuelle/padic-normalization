@@ -94,7 +94,7 @@ First, only p-adic units are removed from rational denominators and the content 
 
 For `f=p*f0` with primitive f0, the algorithm first normalizes f0. The full normalization is then its product with `F_p[x,y]`. An additional idempotent e presents this product as an affine ring; in the original variables, `e=p/(p+f0)`. The iterative algorithm below operates on the flat horizontal model.
 
-A nonzerodivisor d is chosen from the relative Jacobian ideal. In the extension case, it is additionally multiplied by g'(a). The squarefreeness check and a gcd test on the generic fibre verify that it is a nonzerodivisor. After inverting d, A0 is smooth over ZZ and hence normal.
+A nonzerodivisor d is chosen from the relative Jacobian ideal. On the direct extension path, it is additionally multiplied by g'(a), so that inverting d makes A0 smooth over ZZ and hence normal. In integral basis mode, O_F is already normal and this extra factor is unnecessary: smoothness over O_F suffices. If a nonzero integer is found in the relative Jacobian ideal, it is preferred as the test element; otherwise the curve derivative combination is used. Squarefreeness and a gcd test verify the nonzerodivisor property of the derivative combination.
 
 For each current ring Ai, the algorithm computes:
 
@@ -104,7 +104,7 @@ Ci = (d*Ji : Ji)
 Ai+1 = (1/d)*Ci = End_Ai(Ji).
 ```
 
-`radicalZ` from Singular's `primdecint.lib` computes the radical over ZZ. The ideal quotient is computed using a custom syzygy computation over ZZ; the ordinary `quotient` is deliberately not used here. The Singular library documents limitations of that function over ZZ.
+`radicalZ` from Singular's `primdecint.lib` computes the radical over ZZ. The ideal quotient is computed by integer ideal intersections and exact division: starting with K=(1), each nonzero generator j of Ji replaces K by `(H intersect j*K)/j`, where H is the preimage of d*Ji. Intersections are computed by elimination over ZZ. The ordinary `quotient` is not used; the Singular library documents limitations of that function over ZZ.
 
 The new generators are the computer-generated elements `u/d`. Their full relations are determined by eliminating an auxiliary variable from
 
@@ -114,6 +114,8 @@ The new generators are the computer-generated elements `u/d`. Their full relatio
 
 This is saturation with respect to d. Using only the equations `d*z_i-u_i` would be incorrect because additional components on d=0 may appear.
 
+The implementation first cancels common polynomial factors in each fraction. It then uses the reduced graph equations and saturates by the least common multiple of their denominators. This preserves the full relation kernel while avoiding unnecessary elimination work.
+
 When `Ci = d*Ai`, the Grauert–Remmert criterion establishes normality: Ji is radical, contains the nonzerodivisor d, and its vanishing locus contains the nonnormal locus. The last property is preserved because each extension step becomes an isomorphism after inverting d. Otherwise, Ai strictly increases within the finite normalization. Excellence and Noetherianity therefore guarantee theoretical termination.
 
 The normalization is first computed over ZZ. Localization at p and the regular base change to Z_p preserve normality and yield the normalization of the desired model. In the extension case, `O_F tensor_Z Z_p = O_K` because there is exactly one prime above p. This is a **change of coefficients**, not the adic completion of the entire polynomial ring.
@@ -122,13 +124,21 @@ The normalization is first computed over ZZ. Localization at p and the regular b
 
 Run the supplied test suite with `sage -python test_padic_normalization.py`. The file `examples.sage` contains directly executable examples (`sage examples.sage`).
 
-The current version passes all 21 regression tests under SageMath 10.10. The complete local module and test files were executed through SageMathCell on November 13, 2026; SHA-256 hashes identify the exact distributed version. The tests cover, in particular, nonmaximal orders, mixed ramification, local irreducibility, and the new output formats. The report is in `test_results.txt`.
+The current version passes all 24 regression tests under SageMath 10.10 in Arch Linux/WSL (November 14, 2026). The tests cover nonmaximal orders, mixed ramification, local irreducibility, output formats, integer ideal quotients, and Singular restarts. `test_results.txt` records the current source hashes and retains the earlier SageMathCell report. On distributions without `sage -python`, run the suite with a Python installation that provides `sage.all`.
 
 This is a direct reference implementation. Radicals and elimination Gröbner bases over ZZ can be very expensive. It may also normalize at other primes, whose corrections become redundant after base change to O_K.
 
 `max_steps=20` and `max_variables=24` are configurable resource guards. Exceeding them raises `NormalizationLimitError`; an intermediate ring is never returned as the normalization. Individual Gröbner basis or radical computations have no built-in timeout. For large examples, a separate Sage process with an external time or memory limit is recommended.
 
 As with any CAS result, the certificate assumes the correctness of the exact Singular algorithms used. The implementation additionally checks the ideal quotient inclusion and the graph relations. The supplied regression tests do not replace independent review for research results.
+
+### Singular restarts and memory use
+
+`NormalizationBackendError` means that Singular restarted during an operation and the computation was interrupted. No normalization is returned. A common cause is the operating system terminating Singular because it ran out of memory; a backend error alone does not establish that cause. On Linux, check the kernel log for an out-of-memory message. Increasing `max_steps` or `max_variables` does not increase available memory.
+
+The November 14 update avoids the memory-intensive syzygy path, simplifies the graph fractions, and improves the test element in integral basis mode. Large radical computations can still take substantial time. Restart your Sage session after updating the module so that Python imports the new code.
+
+For the reported input `(t^2-s^3)^2*(1+s)-2` over the extension defined by `T^8+4*T^6+2*T^4+28*T^2+1` at p=2, the updated implementation completed the first enlargement, including the previously problematic ideal quotient and graph computation. The following radical computation was stopped to limit test time. A full normalization of this example has **not** yet been verified.
 
 ## References
 

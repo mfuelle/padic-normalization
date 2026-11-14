@@ -1,3 +1,42 @@
+SageMath 10.10 / Arch Linux (WSL), Python 3.14
+Test date: 2026-11-14
+
+The complete updated module and test suite were run locally with:
+  python test_padic_normalization.py
+(The Arch Sage launcher does not support the -python option.)
+
+Ran 24 tests in 6.493s
+OK
+
+SHA-256 padic_normalization.py:
+5f484966ddc8e49ba6500a8d98a5ab860d9ffca45729b1f2419c8b3e5dfe84d2
+SHA-256 test_padic_normalization.py:
+be873aa3b0d9ffeb9598b9f0612103374087b9a8ec4897c314597e9af09b5d18
+
+Reported example:
+  f = (t^2-s^3)^2*(1+s)-2
+  p = 2
+  extension = T^8+4*T^6+2*T^4+28*T^2+1
+
+The original failure was reproduced. Linux kernel logs confirmed that
+Singular was killed for exhausting available memory. The undefined-helper
+message followed Sage's automatic process restart.
+
+The updated code completed the first enlargement, including the ideal
+quotient and saturated graph relations. It used d=1600430 and reached
+Step 1 with 12 variables and 92 relations. The following radical
+computation was stopped to limit test time at the user's request.
+The full normalization of this example is NOT verified.
+
+The final example run had an external 2 GiB address-space limit and a
+300-second timeout; it was stopped before the timeout. This is not an
+internal resource limit provided by the module. Test processes were stopped
+explicitly because a Sage subprocess may survive a wrapper timeout.
+
+Historical validation of the previous version follows. Its source hashes
+identify that older version, not the current module and test suite.
+-----------------------------------------------------------------------
+
 SageMath 10.10 / SageMathCell
 Test date: 2026-11-13
 
